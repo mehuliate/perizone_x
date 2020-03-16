@@ -7,7 +7,7 @@
               <h5 class="mb-0"><BIconUnlockFill /> Login</h5>
             </template>
               <b-card-text>
-                  <b-form @submit="onSubmit" @reset="onReset" v-if="show">
+                  <b-form @submit.prevent="onSubmit" @reset="onReset" v-if="show">
                     <b-form-group
                         id="input-group-1"
                         label="Username:"
@@ -19,6 +19,7 @@
                         type="text"
                         required
                         placeholder="Enter username"
+                        :disabled="busy"
                         ></b-form-input>
                     </b-form-group>
                     <b-form-group
@@ -28,13 +29,24 @@
                     >
                         <b-form-input
                         id="input-1"
-                        v-model="form.email"
+                        v-model="form.password"
                         type="password"
                         required
                         placeholder="Enter password"
+                        :disabled="busy"
                         ></b-form-input>
                     </b-form-group>
-                    <b-button block variant="primary">Submit</b-button>
+                    <b-alert variant="danger" show v-if="error">{{error}}</b-alert>
+                    <b-button type="submit" block variant="primary" :disabled="busy">
+                      <template v-if="busy">
+                        <b-spinner small variant="white">
+                        </b-spinner>
+                        Attaching...
+                      </template>
+                      <template v-else>
+                        Login
+                      </template>
+                    </b-button>
                 </b-form>
               </b-card-text>
                 <p class="text-center"><a href="#"><router-link to="/register">Register</router-link></a></p>
@@ -46,7 +58,10 @@
 
 <script>
 import {BIconUnlockFill } from 'bootstrap-vue'
-  export default {
+
+const axios = require('axios')
+
+export default {
     components: {
       BIconUnlockFill
     },
@@ -56,13 +71,36 @@ import {BIconUnlockFill } from 'bootstrap-vue'
           username: '',
           password: ''
         },
-        show: true
+        error: null,
+        show: true,
+        busy: false
       }
     },
     methods: {
-      onSubmit(evt) {
-        evt.preventDefault()
-        alert(JSON.stringify(this.form))
+      onSubmit() {
+            const fd = new FormData()
+            fd.set('username', this.form.username)
+            fd.set('password', this.form.password)
+
+
+            axios({
+                method: 'post',
+                url: this.$store.state.ssoLogin,
+                data: fd,
+                config: {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                }
+            }).then( (e) => {
+              this.$store.commit('setUserInfo', e.data)
+              this.$router.push({
+                path: '/'
+              })
+            }).catch((e) => {
+              console.log(e)
+              this.error = e.response.data.error
+            })
       },
       onReset(evt) {
         evt.preventDefault()
@@ -74,6 +112,33 @@ import {BIconUnlockFill } from 'bootstrap-vue'
         this.$nextTick(() => {
           this.show = true
         })
+      }
+    },
+    created () {
+      // flag busy
+      this.busy = true
+      // attach first
+      const attachUrl = this.$store.state.ssoAttach
+
+      axios.get(attachUrl, {
+        crossDomain: true
+      })
+        .then(e => {
+          console.log('done attach...')
+          console.log(e)
+          this.busy = false
+        })
+        .catch(e => {
+          console.log('error attaching...')
+          console.log(e)
+          this.busy = false
+        })
+    },
+    computed: {
+      attachImageUrl: function () {
+        const attachUrl = this.$store.state.attachUrl
+        console.log('attach url: ', attachUrl)
+        return attachUrl
       }
     }
   }
